@@ -32,8 +32,6 @@ image_path = cv2.imread(image_path_file)
 
 text = extract_text(image_path)
 
-
-
 chinese_text = extract_chinese_text(text)
 print(chinese_text)
 
@@ -43,9 +41,22 @@ Translate this to {translation_language}:
 {text_to_translate}
 """
 
+critic_template = """
+Original Text:
+{original_text}
+
+Translated Text:
+{translated_text}
+"""
+
 prompt = PromptTemplate(
     template=template, 
     input_variables=["translation_language", "text_to_translate"]
+)
+
+critic_prompt = PromptTemplate(
+    template=critic_template,
+    input_variables=["original_text", "translated_text"]
 )
 
 llm = Ollama(
@@ -54,6 +65,16 @@ llm = Ollama(
     verbose=True
     )
 
+critic_llm = Ollama(
+    model="mistral-translation-critic",
+    callback_manager=CallbackManager([StreamingStdOutCallbackHandler()]),
+    verbose=True
+)
+
 llm_chain = LLMChain(llm=llm, prompt=prompt)
 
-llm_chain.run(translation_language="English", text_to_translate=chinese_text)
+critic_llm_chain = LLMChain(llm=critic_llm, prompt=critic_prompt)
+
+response = llm_chain.run(translation_language="English", text_to_translate=chinese_text)
+
+critic_llm_chain.run(original_text=chinese_text, translated_text=response)
